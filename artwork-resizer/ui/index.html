@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artwork Resizer</title>
+<style>
+/* Layout: fixed control column on the left, live proof on the right, details strip under the proof */
+:root{
+  --bg:#f3f2ef; --panel:#ffffff; --ink:#1e1d1a; --muted:#6c6a63; --line:#dedbd3; --accent:#b0780f; --accent-ink:#ffffff;
+  --well:#2a2926; --warn-bg:#fff4dd; --warn-ink:#7a4c00; --ok:#2f7a4b;
+  --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{--bg:#171614;--panel:#211f1c;--ink:#ecebe7;--muted:#a3a097;--line:#36332e;--accent:#e0a53a;--accent-ink:#1b1306;--well:#0f0e0d;--warn-bg:#3a2c12;--warn-ink:#f2c879;--ok:#6fc28f;color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.01em}
+header .proj{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--muted)}
+main{flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0}
+aside{border-right:1px solid var(--line);background:var(--panel);overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:18px}
+.group{display:grid;gap:10px}
+.group h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0;font-weight:600}
+label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end}
+.swap{border:1px solid var(--line);background:var(--bg);border-radius:6px;height:38px;width:38px;cursor:pointer;color:var(--ink)}
+.seg{display:grid;grid-auto-flow:column;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:var(--bg);padding:8px 6px;font:inherit;color:var(--ink);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.btn{border:0;border-radius:7px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:default}
+.checks{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--ink)}
+.checks label{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:13px}
+.checks input{width:auto}
+section.view{display:grid;grid-template-rows:1fr auto;min-width:0;min-height:0}
+.stage{position:relative;background:var(--well);min-height:0;display:grid;grid-template-columns:1fr auto;gap:0}
+.canvasWrap{position:relative;min-width:0;min-height:0}
+canvas{position:absolute;left:0;top:0}
+.guide{display:none;width:260px;border-left:1px solid #000;padding:14px;color:#cfcac0;font-size:12px;overflow:auto}
+.guide.on{display:block}
+.guide img{width:100%;display:block;margin:8px 0;border:1px solid #444}
+.details{background:var(--panel);border-top:1px solid var(--line);padding:12px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 24px}
+.kv{display:grid;gap:2px;min-width:0}
+.kv span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.kv b{font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600}
+.pill.exact{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.pill.adapt{background:var(--warn-bg);color:var(--warn-ink)}
+.warn{grid-column:1/-1;background:var(--warn-bg);color:var(--warn-ink);border-radius:6px;padding:8px 10px;font-size:13px}
+.history{display:grid;gap:6px;font-size:12px}
+.history div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.history code{font-family:var(--mono);font-size:11px;overflow-wrap:anywhere}
+.toast{position:fixed;right:20px;bottom:20px;background:var(--ink);color:var(--panel);padding:10px 14px;border-radius:8px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:420px}
+.toast.on{opacity:1;transform:none}
+.hint{font-size:12px;color:var(--muted)}
+details summary{cursor:pointer;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+@media (max-width:860px){main{grid-template-columns:1fr}aside{border-right:0}.stage{min-height:60vh}}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+.licbar{background:var(--warn-bg,#fff4dd);color:var(--warn-ink,#7a4c00);padding:8px 20px;font-size:13px;text-align:center}
+.acct{color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Artwork Resizer</h1>
+  <div class="proj"><span>Project</span><select id="project"></select><a class="acct" id="acct" href="/auth#account">Account</a></div>
+</header>
+<main>
+  <aside>
+    <div class="group">
+      <h2>Where it will be shown</h2>
+      <div class="seg" id="context"></div>
+      <div class="seg" id="language"></div>
+    </div>
+
+    <div class="group">
+      <h2>Finished size</h2>
+      <label>Preset
+        <select id="preset">
+          <option value="">Custom size</option>
+          <option value="210x297 mm">A4 portrait · 210 × 297 mm</option>
+          <option value="297x420 mm">A3 portrait · 297 × 420 mm</option>
+          <option value="420x594 mm">A2 portrait · 420 × 594 mm</option>
+          <option value="594x841 mm">A1 portrait · 594 × 841 mm</option>
+          <option value="1200x1760 mm">Abribus 120 × 176 cm</option>
+          <option value="400x400 mm">Counter square · 400 × 400 mm</option>
+          <option value="1000x250 mm">Shelf strip · 1000 × 250 mm</option>
+          <option value="1080x1920 px">Digital screen 1080 × 1920 px</option>
+          <option value="1920x1080 px">Digital screen 1920 × 1080 px</option>
+        </select>
+      </label>
+      <div class="row3">
+        <label>Width <input id="width" type="number" min="1" step="any" value="400"></label>
+        <button class="swap" id="swap" title="Swap width and height" aria-label="Swap width and height">⇄</button>
+        <label>Height <input id="height" type="number" min="1" step="any" value="600"></label>
+      </div>
+      <div class="row">
+        <label>Unit
+          <select id="unit"><option>mm</option><option>cm</option><option>in</option><option>px</option></select>
+        </label>
+        <label id="dpiWrap" hidden>Resolution (dpi) <input id="dpi" type="number" min="1" value="300"></label>
+        <label id="bleedWrap">Bleed (mm) <input id="bleed" type="number" min="0" step="0.5" value="3"></label>
+      </div>
+      <p class="hint" id="ratioHint"></p>
+    </div>
+
+    <div class="group">
+      <h2>Proof view</h2>
+      <div class="checks">
+        <label><input type="checkbox" id="showBoxes"> Element boxes</label>
+        <label><input type="checkbox" id="showMeasure" checked> Rulers &amp; sizes</label>
+        <label><input type="checkbox" id="showTrim" checked> Trim &amp; bleed lines</label>
+        <label><input type="checkbox" id="showGuide"> Guide reference</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <button class="btn primary" id="generate">Create artwork (.ai)</button>
+      <button class="btn ghost" id="openOut">Open output folder</button>
+      <p class="hint" id="outDir"></p>
+    </div>
+
+    <details class="group">
+      <summary>Batch: several sizes at once</summary>
+      <p class="hint">One size per line, e.g. <code>600 x 1200 mm</code>. Add <code>other</code> or <code>guerlain</code> and <code>FR</code>/<code>UK</code> to override the settings above.</p>
+      <textarea id="batch" rows="6" placeholder="400 x 600 mm&#10;1200 x 1760 mm other UK&#10;1080 x 1920 px"></textarea>
+      <button class="btn ghost" id="runBatch">Create all</button>
+    </details>
+
+    <div class="group">
+      <h2>Created this session</h2>
+      <div class="history" id="history"><p class="hint">Nothing yet.</p></div>
+    </div>
+  </aside>
+
+  <section class="view">
+    <div class="stage">
+      <div class="canvasWrap"><canvas id="cv"></canvas></div>
+      <div class="guide" id="guidePanel"><b>Guide reference</b><img id="guideImg" alt="Reference layout from the master guide"><div id="guideText"></div></div>
+    </div>
+    <div class="details" id="details"></div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = { project:null, meta:null, context:null, language:null, plan:null, imgs:{} };
+const CTX_LABEL = { GuerlainPOS:'Guerlain stores (no logo)', OtherPOS:'Other stores (with logo)' };
+
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),3200); }
+async function api(path, body){
+  const r = await fetch(path, body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {});
+  if (r.status===401){ location.href='/auth'; throw new Error('Please sign in.'); }
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Request failed'); return j;
+}
+function img(src){
+  if (!state.imgs[src]) state.imgs[src] = new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src; });
+  return state.imgs[src];
+}
+function seg(el, values, labels, current, onPick){
+  el.innerHTML='';
+  values.forEach(v=>{ const b=document.createElement('button'); b.type='button'; b.textContent=labels[v]||v;
+    b.setAttribute('aria-pressed', String(v===current)); b.onclick=()=>{ onPick(v); seg(el, values, labels, v, onPick); }; el.appendChild(b); });
+}
+
+async function loadProjects(){
+  const list = await api('/api/projects');
+  $('project').innerHTML = list.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  await loadProject(list[0].id);
+}
+async function loadProject(id){
+  state.project=id; state.meta = await api('/api/project/'+id);
+  state.context = state.meta.contexts.includes('OtherPOS') ? 'OtherPOS' : state.meta.contexts[0];
+  state.language = state.meta.languages[0];
+  const cl = Object.assign({}, state.meta.context_labels||{}, CTX_LABEL);
+  const ll = Object.assign({}, state.meta.language_labels||{}, {FR:'French', UK:'English', EN:'English'});
+  seg($('context'), state.meta.contexts, cl, state.context, v=>{state.context=v; refresh();});
+  seg($('language'), state.meta.languages, ll, state.language, v=>{state.language=v; refresh();});
+  $('context').hidden = state.meta.contexts.length < 2;
+  $('language').hidden = state.meta.languages.length < 2;
+  $('outDir').textContent = 'Saves to: ' + state.meta.output_dir;
+  refresh();
+}
+
+function req(extra){
+  return Object.assign({ project:state.project, context:state.context, language:state.language,
+    width:+$('width').value, height:+$('height').value, unit:$('unit').value, dpi:+$('dpi').value, bleed:+$('bleed').value }, extra||{});
+}
+
+let timer;
+function refresh(){ clearTimeout(timer); timer=setTimeout(updatePlan, 120); }
+async function updatePlan(){
+  const w=+$('width').value, h=+$('height').value;
+  if (!(w>0 && h>0)) return;
+  const [lo,hi]=state.meta.ratio_span; const r=w/h;
+  $('ratioHint').textContent = `Ratio ${r.toFixed(3)} (width ÷ height). The guide covers ${lo.toFixed(2)} – ${hi.toFixed(2)}.`;
+  try { state.plan = await api('/api/plan', req()); draw(); details(); }
+  catch(e){ $('details').innerHTML = `<div class="warn">${e.message}</div>`; }
+}
+
+// Draw part of an image without ever distorting it: the source rectangle is clipped to the
+// image and the destination is shrunk by exactly the same proportion (browsers differ here).
+function drawPart(ctx, im, sx, sy, sw, sh, dx, dy, dw, dh){
+  const kx = dw / sw, ky = dh / sh;
+  let x0 = Math.max(0, sx), y0 = Math.max(0, sy);
+  let x1 = Math.min(im.naturalWidth, sx + sw), y1 = Math.min(im.naturalHeight, sy + sh);
+  if (x1 <= x0 || y1 <= y0) return;
+  ctx.drawImage(im, x0, y0, x1 - x0, y1 - y0, dx + (x0 - sx) * kx, dy + (y0 - sy) * ky, (x1 - x0) * kx, (y1 - y0) * ky);
+}
+
+async function draw(){
+  const p = state.plan; if (!p) return;
+  const base = `/projects/${state.project}/`;
+  const gp=$('guidePanel');
+  gp.classList.toggle('on', $('showGuide').checked);           // layout change first, then measure
+  if ($('showGuide').checked){ $('guideImg').src = base+p.guide_preview;
+    $('guideText').textContent = `Guide page ${p.guide_page}, layout for ratio ${p.ratio_range[0].toFixed(2)} – ${p.ratio_range[1].toFixed(2)}, drawn at ratio ${p.ref_ratio.toFixed(3)}.`; }
+  const [bgImg, ovImg] = await Promise.all([img(base+'backgrounds/'+p.background.name+'.jpg'), img(base+p.overlay_png)]);
+  if (state.plan!==p) return;
+  const cv=$('cv'), wrap=cv.parentElement, dpr=window.devicePixelRatio||1;
+  const cw=wrap.clientWidth, ch=wrap.clientHeight;
+  cv.style.width=cw+'px'; cv.style.height=ch+'px';               // CSS size == drawing size: no squeeze
+  cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr);
+  const ctx=cv.getContext('2d'); ctx.setTransform(cv.width/cw,0,0,cv.height/ch,0,0); ctx.clearRect(0,0,cw,ch);
+  const M = $('showMeasure').checked;
+  const padL = M ? 78 : 24, padT = M ? 74 : 24, padR = M ? 40 : 24, padB = M ? 34 : 24;
+  const [PW,PH]=p.sheet, k=Math.min((cw-padL-padR)/PW,(ch-padT-padB)/PH);
+  const ox = padL + (cw-padL-padR-PW*k)/2, oy = padT + (ch-padT-padB-PH*k)/2;
+  ctx.save(); ctx.beginPath(); ctx.rect(ox,oy,PW*k,PH*k); ctx.clip();
+  ctx.imageSmoothingQuality='high';
+  const [lw,lh]=p.background.link_size, [nx,ny,nw,nh]=p.background.window;
+  const bx = bgImg.naturalWidth/lw, by = bgImg.naturalHeight/lh;
+  drawPart(ctx, bgImg, nx*bx, ny*by, nw*bx, nh*by, ox, oy, PW*k, PH*k);
+  const fx = ovImg.naturalWidth / p.ref_size[0], fy = ovImg.naturalHeight / p.ref_size[1];
+  p.elements.forEach(e=>{
+    const [sx0,sy0,sx1,sy1]=e.src_box, [X0,Y0,X1,Y1]=e.box, pad=1.2, s=p.scale;
+    drawPart(ctx, ovImg, (sx0-pad)*fx, (sy0-pad)*fy, (sx1-sx0+2*pad)*fx, (sy1-sy0+2*pad)*fy,
+      ox+(X0-pad*s)*k, oy+(Y0-pad*s)*k, (X1-X0+2*pad*s)*k, (Y1-Y0+2*pad*s)*k);
+  });
+  ctx.restore();
+  const b = p.bleed*k, tx = ox+b, ty = oy+b, tw = p.trim[0]*k, th = p.trim[1]*k;
+  if ($('showTrim').checked){
+    if (p.bleed>0){
+      ctx.fillStyle='rgba(10,10,10,.42)';                       // shade the bleed area
+      ctx.fillRect(ox,oy,PW*k,b); ctx.fillRect(ox,oy+PH*k-b,PW*k,b); ctx.fillRect(ox,oy+b,b,PH*k-2*b); ctx.fillRect(ox+PW*k-b,oy+b,b,PH*k-2*b);
+      ctx.strokeStyle='#35c4ff'; ctx.lineWidth=1; ctx.setLineDash([]);
+      ctx.strokeRect(ox+.5, oy+.5, PW*k-1, PH*k-1);              // bleed edge
+    }
+    ctx.strokeStyle='#ff4fa3'; ctx.lineWidth=1.2; ctx.setLineDash([6,4]);
+    ctx.strokeRect(tx+.5, ty+.5, tw-1, th-1); ctx.setLineDash([]);   // trim line
+    // crop marks outside the sheet (the rulers take their place when shown)
+    if (!M) { ctx.strokeStyle='#e8e2d6'; ctx.lineWidth=1;
+    const L=10, g=4;
+    [[tx,ty],[tx+tw,ty],[tx,ty+th],[tx+tw,ty+th]].forEach(([x,y])=>{
+      const sx = x===tx ? -1 : 1, sy = y===ty ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x+.5, (sy<0? oy-g : oy+PH*k+g)); ctx.lineTo(x+.5, (sy<0? oy-g-L : oy+PH*k+g+L));
+      ctx.moveTo((sx<0? ox-g : ox+PW*k+g), y+.5); ctx.lineTo((sx<0? ox-g-L : ox+PW*k+g+L), y+.5);
+      ctx.stroke();
+    }); }
+    // legend
+    ctx.font='11px -apple-system,Arial'; ctx.textBaseline='alphabetic';
+    let lx = ox, ly = oy+PH*k+26;
+    const key=(col,dash,txt)=>{ ctx.strokeStyle=col; ctx.lineWidth=1.4; ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(lx,ly-4); ctx.lineTo(lx+18,ly-4); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='#d9d3c6'; ctx.fillText(txt, lx+24, ly); lx += 24 + ctx.measureText(txt).width + 18; };
+    if (ly < ch-2){ key('#ff4fa3',[6,4],'Trim (finished size)'); if (p.bleed>0) key('#35c4ff',[],`Bleed edge (+${fmtLen(p.bleed,'mm',0)} each side)`); }
+  }
+  if (M) drawMeasures(ctx, p, k, ox, oy, tx, ty, tw, th);
+  if ($('showBoxes').checked){
+    ctx.strokeStyle='#4fd1ff'; ctx.lineWidth=1.2; ctx.font='11px -apple-system,Arial'; ctx.fillStyle='#4fd1ff';
+    p.elements.forEach((e,i)=>{ const [X0,Y0,X1,Y1]=e.box; ctx.strokeRect(ox+X0*k, oy+Y0*k, (X1-X0)*k, (Y1-Y0)*k);
+      ctx.fillText(`${i+1} · ${e.h_anchor}/${e.v_anchor}`, ox+X0*k+3, oy+Y0*k-4); });
+  }
+}
+
+
+// ---- measurement guides --------------------------------------------------
+const UNIT_PER_PT = { mm: 25.4/72, cm: 2.54/72, in: 1/72 };
+function unitInfo(){ const u=$('unit').value; const dpi=+$('dpi').value||300;
+  return { u, f: u==='px' ? dpi/72 : UNIT_PER_PT[u] }; }
+function fmtLen(pt, unit, dec){ const u = unit || $('unit').value; const f = u==='px' ? (+$('dpi').value||300)/72 : UNIT_PER_PT[u];
+  const v = pt*f; const d = dec!=null ? dec : (u==='mm'||u==='px' ? (Math.abs(v-Math.round(v))<0.05?0:1) : 2);
+  return `${+v.toFixed(d)} ${u}`; }
+function niceStep(pxPerUnit, minPx){
+  const steps=[0.1,0.125,0.25,0.5,1,2,5,10,20,25,50,100,200,250,500,1000,2000,2500,5000,10000,20000,50000];
+  for (const s of steps){ if (s*pxPerUnit >= minPx) return s; } return steps[steps.length-1]; }
+function drawMeasures(ctx, p, k, ox, oy, tx, ty, tw, th){
+  const {u, f} = unitInfo(), pxPerUnit = k / f;           // screen px per user unit
+  const major = niceStep(pxPerUnit, 56), minor = major / (String(major).startsWith('25')||String(major).startsWith('2.5')||major===0.25 ? 5 : (String(major)[0]==='2'?4:5));
+  const PW=p.sheet[0]*k, PH=p.sheet[1]*k, R=18;              // ruler thickness
+  const rx = ox, ry = oy-6-R, lx = ox-6-R;                   // top ruler y, left ruler x
+  ctx.save();
+  ctx.fillStyle='rgba(255,255,255,.07)'; ctx.fillRect(rx, ry, PW, R); ctx.fillRect(lx, oy, R, PH);
+  ctx.strokeStyle='#9c958a'; ctx.fillStyle='#d9d3c6'; ctx.lineWidth=1; ctx.font='10px -apple-system,Arial';
+  const fmtTick = v => (Math.abs(v)<1e-9?0:+v.toFixed(3)).toString();
+  // top ruler: zero at the trim's left edge
+  const x0u = -(tx-ox)/pxPerUnit, x1u = (ox+PW-tx)/pxPerUnit;
+  for (let v=Math.ceil(x0u/minor)*minor; v<=x1u+1e-9; v+=minor){
+    const x = Math.round(tx + v*pxPerUnit)+.5, isMaj = Math.abs(v/major-Math.round(v/major))<1e-6;
+    ctx.beginPath(); ctx.moveTo(x, ry+R); ctx.lineTo(x, ry+R-(isMaj?R*.7:R*.3)); ctx.stroke();
+    if (isMaj){ ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(fmtTick(v), x+2, ry+1); }
+  }
+  // left ruler: zero at the trim's top edge
+  const y0u = -(ty-oy)/pxPerUnit, y1u = (oy+PH-ty)/pxPerUnit;
+  for (let v=Math.ceil(y0u/minor)*minor; v<=y1u+1e-9; v+=minor){
+    const y = Math.round(ty + v*pxPerUnit)+.5, isMaj = Math.abs(v/major-Math.round(v/major))<1e-6;
+    ctx.beginPath(); ctx.moveTo(lx+R, y); ctx.lineTo(lx+R-(isMaj?R*.7:R*.3), y); ctx.stroke();
+    if (isMaj){ ctx.save(); ctx.translate(lx+1, y+2); ctx.rotate(-Math.PI/2); ctx.textAlign='right'; ctx.textBaseline='top'; ctx.fillText(fmtTick(v), 0, 0); ctx.restore(); }
+  }
+  ctx.fillStyle='#9c958a'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(u, lx+R/2, ry+R/2);
+  // dimension lines: finished size (accent) and size with bleed (muted)
+  const dim = (x1,y1,x2,y2,label,col,vertical)=>{
+    ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    const a=5, tick=(x,y)=>{ ctx.beginPath(); if(vertical){ctx.moveTo(x-a,y);ctx.lineTo(x+a,y);} else {ctx.moveTo(x,y-a);ctx.lineTo(x,y+a);} ctx.stroke(); };
+    tick(x1,y1); tick(x2,y2);
+    ctx.font='600 12px -apple-system,Arial'; const w=ctx.measureText(label).width+12;
+    const cx=(x1+x2)/2, cy=(y1+y2)/2;
+    ctx.save(); ctx.translate(cx,cy); if(vertical) ctx.rotate(-Math.PI/2);
+    ctx.fillStyle='#2a2926'; ctx.fillRect(-w/2,-9,w,18); ctx.fillStyle=col; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,0,0.5);
+    ctx.restore();
+  };
+  const accent='#f0b450', muted='#a9a294';
+  const W = fmtLen(p.trim[0]), H = fmtLen(p.trim[1]);
+  dim(tx, ry-14, tx+tw, ry-14, `${W} finished`, accent, false);
+  dim(lx-14, ty, lx-14, ty+th, `${H} finished`, accent, true);
+  if (p.bleed>0){
+    ctx.font='11px -apple-system,Arial'; ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='alphabetic';
+    ctx.fillText(`With bleed: ${fmtLen(p.sheet[0])} × ${fmtLen(p.sheet[1])}`, ox+PW, ry-30);
+  }
+  ctx.restore();
+}
+
+function mm(pt){ return (pt*25.4/72).toFixed(1); }
+function details(){
+  const p=state.plan;
+  const diff = (p.ratio/p.ref_ratio-1)*100;
+  const status = p.exact_reference ? '<span class="pill exact">Same as guide reference</span>'
+    : `<span class="pill adapt">Adapted · ${Math.abs(diff).toFixed(1)}% ${diff>0?'wider':'narrower'} than reference</span>`;
+  $('details').innerHTML = `
+    <div class="kv"><span>Guide layout</span><b>Ratio ${p.ratio_range[0].toFixed(2)} – ${p.ratio_range[1].toFixed(2)} · page ${p.guide_page}</b></div>
+    <div class="kv"><span>Your ratio</span><b>${p.ratio.toFixed(3)} (reference ${p.ref_ratio.toFixed(3)})</b></div>
+    <div class="kv"><span>Status</span><b>${status}</b></div>
+    <div class="kv"><span>Finished size</span><b>${mm(p.trim[0])} × ${mm(p.trim[1])} mm</b></div>
+    <div class="kv"><span>With bleed</span><b>${mm(p.sheet[0])} × ${mm(p.sheet[1])} mm</b></div>
+    <div class="kv"><span>Scale vs guide</span><b>${(p.scale*100).toFixed(0)}%</b></div>
+    <div class="kv"><span>Picture</span><b>${p.background.name} · ${p.background.colour} · ${p.background.effective_ppi} ppi</b></div>
+    ${p.warnings.map(w=>`<div class="warn">${w}</div>`).join('')}`;
+}
+
+function addHistory(results){
+  const h=$('history'); if (h.querySelector('.hint')) h.innerHTML='';
+  results.forEach(r=>{ const d=document.createElement('div');
+    d.innerHTML=`<code>${r.file}</code><span>${r.size_kb} KB</span>`; h.prepend(d); });
+}
+
+async function generate(items){
+  const btns=[$('generate'),$('runBatch')]; btns.forEach(b=>b.disabled=true);
+  try { const r = await api('/api/generate', items ? req({items}) : req());
+    addHistory(r.results); toast(`Created ${r.results.length} file${r.results.length>1?'s':''} in the output folder.`);
+  } catch(e){ toast('Could not create the file: '+e.message); }
+  finally { btns.forEach(b=>b.disabled=false); }
+}
+function parseBatch(){
+  return $('batch').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+    const m = l.match(/([\d.]+)\s*[x×]\s*([\d.]+)\s*(mm|cm|in|px)?/i); if(!m) return null;
+    const it = { width:+m[1], height:+m[2], unit:(m[3]||$('unit').value).toLowerCase() };
+    if (/\bother\b/i.test(l)) it.context='OtherPOS'; if (/\bguerlain\b/i.test(l)) it.context='GuerlainPOS';
+    if (/\bUK\b|\bEN\b/i.test(l)) it.language='UK'; if (/\bFR\b/i.test(l)) it.language='FR';
+    if (it.unit==='px') it.bleed=0;
+    return it; }).filter(Boolean);
+}
+
+$('project').onchange = e=>loadProject(e.target.value);
+['width','height','dpi','bleed'].forEach(id=>$(id).addEventListener('input', ()=>{ $('preset').value=''; refresh(); }));
+$('unit').onchange = ()=>{ const px=$('unit').value==='px'; $('dpiWrap').hidden=!px; if(px) $('bleed').value=0; refresh(); };
+$('swap').onclick = ()=>{ const w=$('width').value; $('width').value=$('height').value; $('height').value=w; refresh(); };
+$('preset').onchange = ()=>{ const v=$('preset').value; if(!v) return; const [d,u]=v.split(' '); const [w,h]=d.split('x');
+  $('width').value=w; $('height').value=h; $('unit').value=u; $('dpiWrap').hidden=u!=='px'; $('bleed').value = u==='px'?0:3; refresh(); };
+['showBoxes','showTrim','showGuide','showMeasure'].forEach(id=>$(id).onchange=draw);
+$('generate').onclick = ()=>generate();
+$('runBatch').onclick = ()=>{ const items=parseBatch(); if(!items.length){ toast('Add at least one size, e.g. 600 x 1200 mm'); return; } generate(items); };
+$('openOut').onclick = ()=>api('/api/open-output', {});
+window.addEventListener('resize', ()=>draw());
+if (window.ResizeObserver) new ResizeObserver(()=>{ clearTimeout(window._rz); window._rz=setTimeout(draw,60); }).observe(document.querySelector('.canvasWrap'));
+loadProjects().catch(e=>toast(e.message));
+fetch('/auth/state').then(r=>r.json()).then(s=>{ const d=s.license&&s.license.days_left;
+  if (s.user) document.getElementById('acct').textContent = s.user.id + ' · Account';
+  if (d!=null && d<=30){ const b=document.createElement('div'); b.className='licbar';
+    b.textContent=`Licence ends on ${s.license.end} (${d} day${d===1?'':'s'} left). Enter the new code under Account.`; document.body.prepend(b);} });
+
+</script>
+</body>
+</html>

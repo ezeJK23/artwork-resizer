@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Builder</title>
+<style>
+/* Layout: one working column (name → guide → pictures → build → result), project list underneath */
+:root{
+  --bg:#f3f2ef; --panel:#ffffff; --ink:#1e1d1a; --muted:#6c6a63; --line:#dedbd3; --accent:#b0780f; --accent-ink:#ffffff;
+  --drop:#faf8f3; --ok:#2f7a4b; --err:#a3341f; --warn-bg:#fff4dd; --warn-ink:#7a4c00;
+  --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{--bg:#171614;--panel:#211f1c;--ink:#ecebe7;--muted:#a3a097;--line:#36332e;--accent:#e0a53a;--accent-ink:#1b1306;--drop:#1c1a17;--ok:#6fc28f;--err:#f08a74;--warn-bg:#3a2c12;--warn-ink:#f2c879;color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0;font-weight:650}
+header a{margin-left:auto;color:var(--accent);font-weight:600;text-decoration:none}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:28px 60px;display:grid;gap:22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;display:grid;gap:14px}
+.step{display:flex;gap:12px;align-items:baseline}
+.step b{font-size:15px}
+.step span{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.hint{color:var(--muted);font-size:13px;margin:0}
+input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;width:100%}
+input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.drops{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.drop{border:2px dashed var(--line);border-radius:10px;background:var(--drop);padding:22px;display:grid;gap:8px;place-content:center;text-align:center;min-height:170px;cursor:pointer;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--drop))}
+.drop.filled{border-style:solid;border-color:var(--ok)}
+.drop b{font-size:15px}
+.drop .files{font-family:var(--mono);font-size:12px;color:var(--muted);max-height:96px;overflow:auto;text-align:left}
+.btn{border:0;border-radius:8px;padding:12px 18px;font:inherit;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);text-decoration:none;display:inline-block}
+.btn:disabled{opacity:.5;cursor:default}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.log{font-family:var(--mono);font-size:12px;color:var(--muted);max-height:180px;overflow:auto;background:var(--bg);border-radius:7px;padding:10px;white-space:pre-wrap}
+.err{color:var(--err);font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 20px}
+.kv{display:grid;gap:2px}
+.kv span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.kv b{font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+.thumb{display:grid;gap:4px;font-size:12px;min-width:0}
+.thumb .img{height:120px;display:grid;place-items:center;background:var(--bg);border-radius:6px;overflow:hidden}
+.thumb img{max-width:100%;max-height:120px;display:block}
+.thumb small{color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+td{font-variant-numeric:tabular-nums}
+.note{background:var(--warn-bg);color:var(--warn-ink);border-radius:7px;padding:10px 12px;font-size:13px}
+@media (max-width:700px){.drops{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.bar i,.drop{transition:none}}
+.licbar{background:var(--warn-bg);color:var(--warn-ink,#7a4c00);padding:8px 20px;font-size:13px;text-align:center}
+.acct{color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Project Builder</h1>
+  <a href="http://localhost:8765" target="_blank" rel="noopener">Open Artwork Resizer ↗</a>
+  <a class="acct" id="acct" href="/auth#account" style="margin-left:12px">Account</a>
+</header>
+<div class="wrap">
+  <section class="card" id="form">
+    <div class="step"><span>1</span><b>Name the project</b></div>
+    <input type="text" id="name" placeholder="e.g. Dior J'adore Repack EDP – Instit France">
+
+    <div class="step"><span>2</span><b>Add the files</b></div>
+    <div class="drops">
+      <div class="drop" id="dropGuide" tabindex="0" role="button" aria-label="Add master guide PDF">
+        <b>Master guide PDF</b>
+        <p class="hint">Drag the layout guide here, or click to choose.<br>Required.</p>
+        <div class="files" id="guideFiles"></div>
+        <input type="file" id="pickGuide" accept="application/pdf,.pdf" hidden>
+      </div>
+      <div class="drop" id="dropLinks" tabindex="0" role="button" aria-label="Add link pictures">
+        <b>Link pictures</b>
+        <p class="hint">Drag the Links folder or picture files here (TIF, JPG, PNG, PSD, EPS).<br>Optional: lets the picture be reframed beyond the guide's crop.</p>
+        <div class="files" id="linkFiles"></div>
+        <input type="file" id="pickLinks" multiple hidden>
+      </div>
+    </div>
+
+    <div class="step"><span>3</span><b>Build</b></div>
+    <p class="hint">The builder reads every page that has a “Ratio” label, finds each layout on the page, and separates the picture from the logo, product and text blocks. Large guides take a few minutes.</p>
+    <div><button class="btn primary" id="build" disabled>Build project</button></div>
+    <div id="progress" hidden>
+      <div class="bar"><i id="barFill"></i></div>
+      <p class="hint" id="status"></p>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <section class="card" id="result" hidden></section>
+
+  <section class="card">
+    <div class="step"><b>Projects in Artwork Resizer</b></div>
+    <p class="hint" id="pdir"></p>
+    <table><thead><tr><th>Project</th><th>Layouts</th><th>Guide</th><th></th></tr></thead><tbody id="plist"></tbody></table>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const st = { guide:null, links:[], job:null };
+
+async function api(path, opts){ const r = await fetch(path, opts); if (r.status===401){ location.href='/auth'; throw new Error('Please sign in.'); } const j = await r.json(); if(!r.ok) throw new Error(j.error||'Request failed'); return j; }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const IMG = /\.(tif|tiff|jpe?g|png|psd|eps|bmp)$/i;
+
+function refreshForm(){
+  $('guideFiles').textContent = st.guide ? st.guide.name + ' · ' + (st.guide.size/1048576).toFixed(1) + ' MB' : '';
+  $('dropGuide').classList.toggle('filled', !!st.guide);
+  $('linkFiles').innerHTML = st.links.map(f=>esc(f.name)).join('<br>');
+  $('dropLinks').classList.toggle('filled', st.links.length>0);
+  $('build').disabled = !st.guide || !$('name').value.trim();
+  if (st.guide && !$('name').value.trim()) { $('name').value = st.guide.name.replace(/\.pdf$/i,'').replace(/[_]+/g,' ').slice(0,60); $('build').disabled=false; }
+}
+
+async function filesFromDrop(dt){
+  const out = [];
+  const items = [...(dt.items||[])].map(i=>i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!items.length) return [...dt.files];
+  async function walk(entry){
+    if (entry.isFile) await new Promise(res=>entry.file(f=>{ out.push(f); res(); }, res));
+    else if (entry.isDirectory){ const r = entry.createReader();
+      let batch; do { batch = await new Promise(res=>r.readEntries(res, ()=>res([]))); for (const e of batch) await walk(e); } while (batch.length); }
+  }
+  for (const e of items) await walk(e);
+  return out;
+}
+function setupDrop(zone, picker, onFiles){
+  zone.addEventListener('click', ()=>picker.click());
+  zone.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); picker.click(); }});
+  picker.addEventListener('change', ()=>onFiles([...picker.files]));
+  ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev, e=>{ e.preventDefault(); zone.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev, e=>{ e.preventDefault(); zone.classList.remove('over'); }));
+  zone.addEventListener('drop', async e=>onFiles(await filesFromDrop(e.dataTransfer)));
+}
+setupDrop($('dropGuide'), $('pickGuide'), files=>{
+  const pdfs = files.filter(f=>/\.pdf$/i.test(f.name));
+  if (!pdfs.length){ alertBox('Drop a PDF file for the master guide.'); return; }
+  st.guide = pdfs[0];
+  const imgs = files.filter(f=>IMG.test(f.name)); if (imgs.length) st.links = st.links.concat(imgs);
+  refreshForm();
+});
+setupDrop($('dropLinks'), $('pickLinks'), files=>{
+  const imgs = files.filter(f=>IMG.test(f.name));
+  const pdf = files.find(f=>/\.pdf$/i.test(f.name)); if (pdf && !st.guide) st.guide = pdf;
+  const seen = new Set(st.links.map(f=>f.name));
+  imgs.forEach(f=>{ if(!seen.has(f.name)){ st.links.push(f); seen.add(f.name); } });
+  refreshForm();
+});
+$('name').addEventListener('input', refreshForm);
+function alertBox(msg){ $('progress').hidden=false; $('status').innerHTML = `<span class="err">${esc(msg)}</span>`; }
+
+async function upload(job, kind, file){
+  await api(`/api/upload?job=${job}&kind=${kind}&name=${encodeURIComponent(file.name)}`, {method:'POST', body:file});
+}
+
+$('build').onclick = async ()=>{
+  $('build').disabled = true; $('progress').hidden = false; $('result').hidden = true; $('log').textContent='';
+  try {
+    const { job } = await api('/api/new-job', {method:'POST'}); st.job = job;
+    const all = [['guide', st.guide], ...st.links.map(f=>['link', f])];
+    for (let i=0;i<all.length;i++){
+      $('status').textContent = `Uploading ${all[i][1].name} (${i+1} of ${all.length})…`;
+      $('barFill').style.width = (5*i/all.length)+'%';
+      await upload(job, all[i][0], all[i][1]);
+    }
+    await api('/api/build', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({job, name:$('name').value.trim()})});
+    poll();
+  } catch(e){ alertBox(e.message); $('build').disabled=false; }
+};
+
+async function poll(){
+  const s = await api('/api/status?job='+st.job);
+  $('barFill').style.width = (5 + 95*(s.progress||0))+'%';
+  $('log').textContent = (s.log||[]).join('\n'); $('log').scrollTop = $('log').scrollHeight;
+  if (s.state==='building' || s.state==='uploading'){ $('status').textContent = (s.log||[]).slice(-1)[0] || 'Building…'; setTimeout(poll, 1000); return; }
+  if (s.state==='error'){ alertBox('The project could not be built: '+s.error); $('build').disabled=false; return; }
+  $('status').textContent = 'Done.';
+  showResult(s.result); loadProjects();
+  st.guide=null; st.links=[]; $('name').value=''; refreshForm();
+}
+
+function showResult(r){
+  const ctx = Object.values(r.contexts||{}), ver = Object.keys(r.versions||{});
+  $('result').hidden = false;
+  $('result').innerHTML = `
+    <div class="step"><b>${esc(r.name)} is ready</b></div>
+    <div class="stats">
+      <div class="kv"><span>Layouts</span><b>${r.layouts}</b></div>
+      <div class="kv"><span>Ratios covered</span><b>${r.ratio_span[0].toFixed(2)} – ${r.ratio_span[1].toFixed(2)}</b></div>
+      <div class="kv"><span>Versions</span><b>${esc(ver.join(', '))}</b></div>
+      <div class="kv"><span>Picture source</span><b>${r.linked ? r.linked+' from links' : 'Guide (no links matched)'}</b></div>
+    </div>
+    ${ctx.length>1 ? `<p class="hint">Sections found: ${ctx.map(esc).join(' · ')}</p>`:''}
+    ${r.linked===0 ? `<div class="note">Pictures come from the guide itself, so they can only be cropped, not extended. Add the link pictures and rebuild for more freedom and higher resolution.</div>`:''}
+    <div><a class="btn primary" href="http://localhost:8765" target="_blank" rel="noopener">Open in Artwork Resizer</a></div>
+    <p class="hint">Check the layouts below against the guide. Each tile shows the ratio and how many blocks were found (P = product images).</p>
+    <div class="grid">${r.items.slice(0,400).map(i=>`
+      <div class="thumb"><div class="img"><img loading="lazy" src="${i.preview}" alt="Layout ${i.ratio[0]}"></div>
+      <b>${i.ratio[0]===i.ratio[1]-0.01 ? ((i.ratio[0]+i.ratio[1])/2).toFixed(2) : i.ratio[0].toFixed(2)+' – '+i.ratio[1].toFixed(2)}</b>
+      <small>${esc(i.version)} · p${i.page} · ${i.elements} blocks${i.products? ' · '+i.products+' P':''}</small></div>`).join('')}</div>`;
+}
+
+async function loadProjects(){
+  const r = await api('/api/projects');
+  $('pdir').textContent = 'Saved in: ' + r.projects_dir;
+  $('plist').innerHTML = r.projects.length ? r.projects.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.layouts}</td><td>${esc(p.guide)}</td>
+    <td><button class="btn ghost" data-id="${esc(p.id)}">View</button></td></tr>`).join('') : '<tr><td colspan="4" class="hint">No projects yet.</td></tr>';
+  document.querySelectorAll('#plist button').forEach(b=>b.onclick=async()=>{ showResult(await api('/api/summary?id='+b.dataset.id)); window.scrollTo({top:0,behavior:'smooth'}); });
+}
+loadProjects();
+fetch('/auth/state').then(r=>r.json()).then(s=>{ const d=s.license&&s.license.days_left;
+  if (s.user) document.getElementById('acct').textContent = s.user.id + ' · Account';
+  if (d!=null && d<=30){ const b=document.createElement('div'); b.className='licbar';
+    b.textContent=`Licence ends on ${s.license.end} (${d} day${d===1?'':'s'} left). Enter the new code under Account.`; document.body.prepend(b);} });
+</script>
+</body>
+</html>

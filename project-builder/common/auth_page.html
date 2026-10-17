@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{APP_NAME}} · Sign in</title>
+<style>
+/* Layout: one centred card; the view (licence / first account / sign in / account) swaps inside it */
+:root{
+  --bg:#f3f2ef; --panel:#ffffff; --ink:#1e1d1a; --muted:#6c6a63; --line:#dedbd3; --accent:#b0780f; --accent-ink:#ffffff;
+  --ok:#2f7a4b; --err:#a3341f; --warn-bg:#fff4dd; --warn-ink:#7a4c00;
+  --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{--bg:#171614;--panel:#211f1c;--ink:#ecebe7;--muted:#a3a097;--line:#36332e;--accent:#e0a53a;--accent-ink:#1b1306;--ok:#6fc28f;--err:#f08a74;--warn-bg:#3a2c12;--warn-ink:#f2c879;color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);display:grid;place-items:center;padding:24px 16px}
+.card{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px;display:grid;gap:16px}
+.card.wide{max-width:720px}
+.brand{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{margin:0;font-size:22px;text-wrap:balance}
+p{margin:0;color:var(--muted)}
+label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;width:100%}
+textarea{font-family:var(--mono);font-size:13px;min-height:110px;resize:vertical}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.btn{border:0;border-radius:8px;padding:11px 16px;font:inherit;font-weight:600;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn.small{padding:6px 10px;font-size:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.msg{font-size:13px;border-radius:7px;padding:9px 11px}
+.msg.err{background:color-mix(in srgb,var(--err) 12%,transparent);color:var(--err)}
+.msg.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.msg.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13px}
+.kv span{color:var(--muted)}
+.kv b{font-weight:600;overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:8px 0 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:520px){.grid2{grid-template-columns:1fr}.kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="card" id="card">
+  <div class="brand">{{APP_NAME}}</div>
+
+  <!-- licence -->
+  <form id="vLicense" hidden>
+    <h1>Enter your licence code</h1>
+    <p id="licReason">A licence code is needed to use this app. Each code is valid for one year.</p>
+    <label>Licence code <textarea id="code" placeholder="AR1-XXXXX-XXXXX-…" spellcheck="false" required></textarea></label>
+    <div id="licMsg"></div>
+    <button class="btn" type="submit">Activate</button>
+  </form>
+
+  <!-- first account -->
+  <form id="vSetup" hidden>
+    <h1>Create the administrator account</h1>
+    <p>This is the first sign-in on this computer. The administrator can add other users later.</p>
+    <label>User ID <input id="sUid" autocomplete="username" required></label>
+    <label>Password (at least 8 characters) <input id="sPw" type="password" autocomplete="new-password" required></label>
+    <label>Repeat password <input id="sPw2" type="password" autocomplete="new-password" required></label>
+    <div id="setupMsg"></div>
+    <button class="btn" type="submit">Create account and sign in</button>
+  </form>
+
+  <!-- sign in -->
+  <form id="vLogin" hidden>
+    <h1>Sign in</h1>
+    <label>User ID <input id="lUid" autocomplete="username" required></label>
+    <label>Password <input id="lPw" type="password" autocomplete="current-password" required></label>
+    <div id="loginMsg"></div>
+    <div id="loginLic"></div>
+    <button class="btn" type="submit">Sign in</button>
+    <details><summary style="cursor:pointer;color:var(--accent);font-size:13px;font-weight:600">Forgot your password?</summary>
+      <p style="margin-top:8px;font-size:13px">Ask an administrator to reset it under Account → Users. If you are the administrator, open the Artwork Resizer folder on this Mac and double-click <b>Reset Password.command</b>.</p></details>
+  </form>
+
+  <!-- account -->
+  <section id="vAccount" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h1>Account</h1>
+      <div class="row"><a class="btn ghost small" href="/">Back to app</a><button class="btn ghost small" id="logout">Sign out</button></div>
+    </div>
+    <h2>Licence</h2>
+    <div class="kv" id="licInfo"></div>
+    <details><summary style="cursor:pointer;color:var(--accent);font-weight:600">Enter a new licence code</summary>
+      <form id="renew" style="display:grid;gap:10px;margin-top:10px">
+        <textarea id="code2" placeholder="AR1-XXXXX-…" spellcheck="false" required></textarea>
+        <div id="renewMsg"></div>
+        <div><button class="btn" type="submit">Activate</button></div>
+      </form>
+    </details>
+    <h2>Change your password</h2>
+    <form id="pwForm" class="grid2">
+      <label>Current password <input id="pOld" type="password" autocomplete="current-password" required></label>
+      <label>New password <input id="pNew" type="password" autocomplete="new-password" required></label>
+      <div id="pwMsg" style="grid-column:1/-1"></div>
+      <div><button class="btn" type="submit">Change password</button></div>
+    </form>
+    <div id="adminArea" hidden>
+      <h2>Users</h2>
+      <table><thead><tr><th>User ID</th><th>Role</th><th>Created</th><th></th></tr></thead><tbody id="users"></tbody></table>
+      <form id="addUser" class="grid2">
+        <label>New user ID <input id="aUid" required></label>
+        <label>Temporary password <input id="aPw" type="text" required></label>
+        <label>Role <select id="aRole"><option value="user">User</option><option value="admin">Administrator</option></select></label>
+        <div style="align-self:end"><button class="btn" type="submit">Add user</button></div>
+        <div id="userMsg" style="grid-column:1/-1"></div>
+      </form>
+    </div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function msg(el, text, kind){ $(el).innerHTML = text ? `<div class="msg ${kind||'err'}">${esc(text)}</div>` : ''; }
+async function post(path, body){ const r = await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||'Something went wrong.'); return j; }
+function show(id){ ['vLicense','vSetup','vLogin','vAccount'].forEach(v=>$(v).hidden = v!==id); $('card').classList.toggle('wide', id==='vAccount'); }
+
+let S;
+async function load(){
+  S = await (await fetch('/auth/state')).json();
+  const wantAccount = location.hash === '#account';
+  if (!S.license.valid){ show('vLicense'); if (S.license.reason) $('licReason').textContent = S.license.reason; return; }
+  if (!S.has_users){ show('vSetup'); return; }
+  if (!S.user){ show('vLogin'); renderLoginLic(); return; }
+  if (!wantAccount){ location.href='/'; return; }
+  show('vAccount'); renderAccount();
+}
+function renderLoginLic(){
+  const d = S.license.days_left;
+  $('loginLic').innerHTML = d!=null && d<=30 ? `<div class="msg warn">The licence ends on ${esc(S.license.end)} (${d} day${d===1?'':'s'} left). Ask for the new code to keep working.</div>` : '';
+}
+function renderAccount(){
+  const L = S.license;
+  $('licInfo').innerHTML = `<span>Licensed to</span><b>${esc(L.licensee)}</b><span>Licence ID</span><b>${esc(L.id)}</b>
+    <span>Valid</span><b>${esc(L.start)} to ${esc(L.end)} · ${L.days_left} days left</b><span>Includes</span><b>${esc((L.products||[]).join(', '))}</b>
+    <span>Signed in as</span><b>${esc(S.user.id)} (${S.user.role==='admin'?'administrator':'user'})</b>`;
+  $('adminArea').hidden = S.user.role!=='admin';
+  if (S.user.role==='admin') loadUsers();
+}
+async function loadUsers(r){
+  r = r || await post('/auth/users',{action:'list'});
+  $('users').innerHTML = r.users.map(u=>`<tr><td>${esc(u.id)}</td><td>${u.role==='admin'?'Administrator':'User'}</td><td>${esc(u.created)}</td>
+    <td class="row" style="justify-content:flex-end">${u.id===S.user.id?'<span style="color:var(--muted)">You</span>':
+    `<button class="btn ghost small" data-reset="${esc(u.id)}">Reset password</button><button class="btn ghost small" data-del="${esc(u.id)}">Remove</button>`}</td></tr>`).join('');
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if (b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='Click again to remove'; return; }
+    try{ loadUsers(await post('/auth/users',{action:'delete',uid:b.dataset.del})); msg('userMsg','User removed.','ok'); }catch(e){ msg('userMsg',e.message); } });
+  document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=async()=>{
+    const pw = Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,6).toUpperCase();
+    try{ await post('/auth/users',{action:'reset',uid:b.dataset.reset,password:pw}); msg('userMsg',`New temporary password for ${b.dataset.reset}: ${pw}`,'ok'); }catch(e){ msg('userMsg',e.message); } });
+}
+
+$('vLicense').onsubmit = async e=>{ e.preventDefault(); msg('licMsg','');
+  try{ const r = await post('/auth/license',{code:$('code').value}); msg('licMsg',`Activated for ${r.license.licensee}, valid until ${r.license.end}.`,'ok'); setTimeout(load,700); }
+  catch(err){ msg('licMsg',err.message); } };
+$('vSetup').onsubmit = async e=>{ e.preventDefault(); msg('setupMsg','');
+  if ($('sPw').value!==$('sPw2').value){ msg('setupMsg','The two passwords do not match.'); return; }
+  try{ await post('/auth/setup',{uid:$('sUid').value,password:$('sPw').value}); location.href='/'; }catch(err){ msg('setupMsg',err.message); } };
+$('vLogin').onsubmit = async e=>{ e.preventDefault(); msg('loginMsg','');
+  try{ await post('/auth/login',{uid:$('lUid').value,password:$('lPw').value}); location.href='/'; }catch(err){ msg('loginMsg',err.message); } };
+$('logout').onclick = async()=>{ await post('/auth/logout'); location.hash=''; load(); };
+$('renew').onsubmit = async e=>{ e.preventDefault();
+  try{ const r = await post('/auth/license',{code:$('code2').value}); msg('renewMsg',`Activated, valid until ${r.license.end}.`,'ok'); S.license=r.license; renderAccount(); }
+  catch(err){ msg('renewMsg',err.message); } };
+$('pwForm').onsubmit = async e=>{ e.preventDefault();
+  try{ await post('/auth/password',{old:$('pOld').value,new:$('pNew').value}); msg('pwMsg','Password changed.','ok'); $('pwForm').reset(); }catch(err){ msg('pwMsg',err.message); } };
+$('addUser').onsubmit = async e=>{ e.preventDefault();
+  try{ loadUsers(await post('/auth/users',{action:'add',uid:$('aUid').value,password:$('aPw').value,role:$('aRole').value}));
+    msg('userMsg',`User ${$('aUid').value} added. Give them the temporary password; they can change it under Account.`,'ok'); $('addUser').reset(); }catch(err){ msg('userMsg',err.message); } };
+window.addEventListener('hashchange', load);
+load();
+</script>
+</body>
+</html>

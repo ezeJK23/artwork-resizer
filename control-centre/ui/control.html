@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control Centre</title>
+<style>
+/* Layout: fixed sidebar (back end / front end sections) + one content pane per page; dialogs for create/renew/reset */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --ink:#17202b; --muted:#5f6b7a; --line:#dde2e8; --soft:#f7f8fa; --side:#16202c; --side-ink:#d6dde6; --side-muted:#8693a4;
+  --accent:#24507a; --accent-ink:#ffffff; --accent-soft:#e7eef6; --gold:#b0780f;
+  --ok:#2c7a4b; --ok-soft:#e5f3ea; --warn:#8a5a00; --warn-soft:#fff3d6; --err:#a3341f; --err-soft:#fbe9e5;
+  --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; --shadow:0 12px 40px rgba(16,24,40,.18);
+}
+@media (prefers-color-scheme: dark){:root{--bg:#121519;--panel:#1b1f25;--ink:#e9ecf0;--muted:#9aa4b2;--line:#2f353e;--soft:#20252c;--side:#0d1116;--side-ink:#d6dde6;--side-muted:#7c8899;
+  --accent:#86b6e6;--accent-ink:#0c1825;--accent-soft:#1f2c3a;--gold:#e0a53a;--ok:#73c795;--ok-soft:#18291f;--warn:#f0c46e;--warn-soft:#302610;--err:#f08b76;--err-soft:#341b16;
+  --shadow:0 12px 40px rgba(0,0,0,.5);color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+button{font:inherit;color:inherit}
+a{color:var(--accent)}
+.btn{border:0;border-radius:8px;padding:9px 15px;font-weight:600;cursor:pointer;background:var(--accent);color:var(--accent-ink);display:inline-flex;align-items:center;gap:8px;text-decoration:none;white-space:nowrap}
+.btn.ghost{background:var(--panel);border:1px solid var(--line);color:var(--ink)}
+.btn.danger{background:var(--err-soft);color:var(--err)}
+.btn.small{padding:6px 11px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;width:100%}
+textarea{font-family:var(--mono);font-size:13px}
+label.f{display:grid;gap:6px;font-size:13px;font-weight:600}
+label.f small{font-weight:400;color:var(--muted)}
+
+.shell{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+aside{background:var(--side);color:var(--side-ink);padding:18px 12px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh}
+.brand{padding:4px 10px}
+.brand b{display:block;font-size:16px;color:#fff}
+.brand span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#f08b76;font-weight:700}
+.nav{display:grid;gap:2px}
+.nav h4{margin:10px 10px 4px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--side-muted);font-weight:700}
+.nav button{background:none;border:0;text-align:left;padding:9px 10px;border-radius:8px;color:var(--side-ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.nav button:hover{background:rgba(255,255,255,.06)}
+.nav button[aria-current="page"]{background:rgba(255,255,255,.12);color:#fff;font-weight:600}
+.nav .count{font-size:12px;background:rgba(255,255,255,.12);border-radius:99px;padding:0 8px}
+.nav .count.warn{background:#f0c46e;color:#2b1d00}
+.side-foot{margin-top:auto;display:grid;gap:6px;padding:0 10px;font-size:12px;color:var(--side-muted)}
+.side-foot button{background:none;border:0;color:var(--side-ink);text-align:left;padding:0;cursor:pointer;text-decoration:underline}
+
+main{padding:28px 32px 64px;display:grid;gap:22px;align-content:start;min-width:0}
+main>section{display:grid;gap:18px;align-content:start;min-width:0}
+.head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.head h1{margin:0;font-size:24px}
+.head p{margin:2px 0 0;color:var(--muted)}
+.head .sp{flex:1}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.card.pad{padding:18px 20px;display:grid;gap:14px;align-content:start}
+.card h2{margin:0;font-size:15px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.tag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:2px;text-align:left;cursor:pointer}
+.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.stat span{font-size:12px;color:var(--muted);font-weight:600}
+.stat b{font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums}
+.stat.ok b{color:var(--ok)} .stat.warn b{color:var(--warn)} .stat.err b{color:var(--err)}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mini div{background:var(--soft);border-radius:10px;padding:10px 12px;display:grid}
+.mini span{font-size:12px;color:var(--muted)}
+.mini b{font-size:20px;font-variant-numeric:tabular-nums}
+
+.appcard{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--muted)}
+.dot.running{background:var(--ok);box-shadow:0 0 0 4px var(--ok-soft)}
+.dot.starting{background:var(--warn);box-shadow:0 0 0 4px var(--warn-soft)}
+.appcard b{display:block}
+.appcard small{color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.due{background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);border-radius:12px;padding:14px 16px;display:grid;gap:10px}
+.due h2{margin:0;font-size:14px;color:var(--warn)}
+.due .items{display:flex;flex-wrap:wrap;gap:10px}
+.due .item{background:var(--panel);border-radius:9px;padding:9px 12px;display:flex;gap:12px;align-items:center;border:1px solid var(--line)}
+.due .item span{color:var(--muted);font-size:13px}
+
+.toolbar{display:flex;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.toolbar h2{margin:0;font-size:15px}
+.search{flex:1;min-width:200px;max-width:340px;margin-left:auto}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;color:var(--muted);font-weight:600;text-align:left;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--soft)}
+td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:middle;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+tbody.click tr{cursor:pointer}
+tbody.click tr:hover{background:var(--soft)}
+.cust b{display:block}
+.cust small{color:var(--muted)}
+.apps{display:flex;gap:6px;flex-wrap:wrap}
+.app{font-size:12px;border-radius:6px;padding:2px 8px;background:var(--accent-soft);color:var(--accent);font-weight:600;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:99px;padding:3px 10px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.Active,.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.soon{background:var(--warn-soft);color:var(--warn)}
+.pill.Expired,.pill.bad{background:var(--err-soft);color:var(--err)}
+.pill.later{background:var(--soft);color:var(--muted)}
+.valid small{display:block;color:var(--muted)}
+.meter{height:5px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:6px;width:130px}
+.meter i{display:block;height:100%;background:var(--ok)}
+.meter i.soon{background:var(--warn)} .meter i.Expired{background:var(--err)}
+.empty{padding:40px 20px;text-align:center;display:grid;gap:8px;justify-items:center;color:var(--muted)}
+.empty b{color:var(--ink);font-size:16px}
+
+.projects{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.proj{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:grid;grid-template-rows:150px auto}
+.proj .img{background:var(--soft);display:grid;place-items:center;overflow:hidden}
+.proj img{max-width:100%;max-height:150px;display:block}
+.proj .body{padding:12px 14px;display:grid;gap:8px}
+.proj b{font-size:15px}
+.proj .meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px}
+.files td{font-size:13px}
+
+dialog{border:0;border-radius:16px;padding:0;width:min(560px,calc(100vw - 32px));background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(15,20,28,.45)}
+.dh{display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid var(--line)}
+.dh h3{margin:0;font-size:17px;flex:1}
+.x{background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:4px 8px}
+.db{padding:20px 22px;display:grid;gap:16px}
+.df{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice label{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.choice label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.choice input{width:auto;margin-top:3px}
+.choice b{display:block}
+.choice small{color:var(--muted)}
+.period{background:var(--soft);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.period span{color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.code{font-family:var(--mono);font-size:13px;line-height:1.7;background:var(--soft);border:1px dashed var(--line);border-radius:10px;padding:14px;overflow-wrap:anywhere;user-select:all}
+.done{display:flex;gap:12px;align-items:center;background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:12px 14px;font-weight:600}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:8px 14px}
+.kv span{color:var(--muted)}
+.kv b{font-weight:600;overflow-wrap:anywhere}
+.msg{font-size:13px;border-radius:8px;padding:10px 12px}
+.msg.err{background:var(--err-soft);color:var(--err)}
+.msg.ok{background:var(--ok-soft);color:var(--ok)}
+.msg.info{background:var(--accent-soft);color:var(--accent)}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.path{font-family:var(--mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,10px);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;font-weight:600;z-index:20}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.hist{display:grid;gap:6px;font-size:13px}
+.hist div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.gate form{width:min(400px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px;display:grid;gap:16px;box-shadow:var(--shadow)}
+.gate h1{margin:0;font-size:20px}
+@media (max-width:980px){.grid2,.grid3{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:760px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}main{padding:20px 16px 48px}.choice,.row2{grid-template-columns:1fr}.kv{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+
+<section class="gate" id="gate" hidden>
+  <form id="gateForm">
+    <span class="tag" style="color:var(--err)">Private · vendor only</span>
+    <h1 id="gateTitle">Sign in to Control Centre</h1>
+    <p class="hint" id="gateHint">Enter your manager password.</p>
+    <label class="f">Password <input type="password" id="gatePw" autocomplete="current-password" required></label>
+    <label class="f" id="gatePw2Wrap" hidden>Repeat password <input type="password" id="gatePw2" autocomplete="new-password"></label>
+    <div id="gateMsg"></div>
+    <button class="btn" type="submit" style="justify-content:center">Continue</button>
+    <p class="hint">Forgot it? In the License Manager folder, double-click <b>Reset Manager Password.command</b>.</p>
+  </form>
+</section>
+
+<div class="shell" id="app" hidden>
+  <aside>
+    <div class="brand"><b>Control Centre</b><span>Private</span></div>
+    <nav class="nav" aria-label="Sections">
+      <button data-page="overview">Overview</button>
+      <h4>Back end</h4>
+      <button data-page="licences">Licences <span class="count" id="navLic"></span></button>
+      <h4>Front end · this Mac</h4>
+      <button data-page="apps">Apps &amp; files</button>
+      <button data-page="users">Users <span class="count" id="navUsers"></span></button>
+      <button data-page="projects">Projects <span class="count" id="navProj"></span></button>
+      <button data-page="maclic">This Mac's licence</button>
+      <h4>Settings</h4>
+      <button data-page="settings">Password &amp; folders</button>
+    </nav>
+    <div class="side-foot"><span>Signed in as manager</span><button id="logout">Sign out</button></div>
+  </aside>
+
+  <main>
+    <!-- OVERVIEW -->
+    <section data-view="overview">
+      <div class="head"><div><h1>Overview</h1><p>Everything at a glance: licences you sell, and the apps running on this Mac.</p></div></div>
+      <div class="due" id="ovDue" hidden><h2 id="ovDueTitle"></h2><div class="items" id="ovDueItems"></div></div>
+      <div class="grid2">
+        <div class="card pad">
+          <div class="row" style="justify-content:space-between"><div><span class="tag">Back end</span><h2>Licences</h2></div><button class="btn small" data-go-new>+ New licence</button></div>
+          <div class="mini"><div><span>Active</span><b id="ovActive">0</b></div><div><span>Ending ≤ 30 days</span><b id="ovSoon" style="color:var(--warn)">0</b></div><div><span>Expired</span><b id="ovExpired" style="color:var(--err)">0</b></div></div>
+          <div class="row"><button class="btn ghost small" data-goto="licences">Manage licences</button><span class="hint" id="ovCustomers"></span></div>
+        </div>
+        <div class="card pad">
+          <div><span class="tag">Front end · this Mac</span><h2>Apps</h2></div>
+          <div id="ovApps" style="display:grid;gap:10px"></div>
+          <div class="mini"><div><span>Users</span><b id="ovUsers">0</b></div><div><span>Projects</span><b id="ovProjects">0</b></div><div><span>Files created</span><b id="ovOutputs">0</b></div></div>
+          <div id="ovMacLic"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LICENCES -->
+    <section data-view="licences" hidden>
+      <div class="head"><div><h1>Licences</h1><p>Issue a licence code to a customer, renew it each year, or check a code.</p></div><span class="sp"></span>
+        <button class="btn ghost" id="openCheck">Check a code</button><button class="btn" data-go-new>+ New licence</button></div>
+      <div class="due" id="due" hidden><h2 id="dueTitle"></h2><div class="items" id="dueItems"></div></div>
+      <div class="stats">
+        <button class="stat ok" data-filter="Active"><span>Active</span><b id="sActive">0</b></button>
+        <button class="stat warn" data-filter="soon"><span>Ending within 30 days</span><b id="sSoon">0</b></button>
+        <button class="stat err" data-filter="Expired"><span>Expired</span><b id="sExpired">0</b></button>
+        <button class="stat" data-filter="all"><span>All licences</span><b id="sAll">0</b></button>
+      </div>
+      <div class="card">
+        <div class="toolbar"><h2 id="listTitle">All licences</h2><input class="search" id="q" type="search" placeholder="Search customer, email, licence ID or notes" aria-label="Search licences"></div>
+        <div class="tablewrap"><table style="min-width:820px"><thead><tr><th>Customer</th><th>Apps</th><th>Valid until</th><th>Status</th><th>Licence ID</th><th></th></tr></thead><tbody id="rows" class="click"></tbody></table></div>
+        <div class="empty" id="licEmpty" hidden><b>No licences yet</b><span>Create the first one for a customer.</span><button class="btn" data-go-new>+ New licence</button></div>
+        <div class="empty" id="noMatch" hidden><b>Nothing matches</b><span>Try another name, or show all licences.</span></div>
+      </div>
+    </section>
+
+    <!-- APPS & FILES -->
+    <section data-view="apps" hidden>
+      <div class="head"><div><h1>Apps &amp; files</h1><p>Start, stop and open the apps on this Mac, and find the artwork they created.</p></div></div>
+      <div id="appCards" style="display:grid;gap:12px"></div>
+      <div class="card">
+        <div class="toolbar"><h2>Artwork created</h2><span class="sp" style="flex:1"></span><button class="btn ghost small" data-open="output">Open Output folder</button></div>
+        <div class="tablewrap"><table class="files"><thead><tr><th>File</th><th>Created</th><th>Size</th></tr></thead><tbody id="files"></tbody></table></div>
+        <div class="empty" id="filesEmpty" hidden><b>No artwork yet</b><span>Files created in Artwork Resizer appear here.</span></div>
+      </div>
+    </section>
+
+    <!-- USERS -->
+    <section data-view="users" hidden>
+      <div class="head"><div><h1>Users</h1><p>People who can sign in to Artwork Resizer and Project Builder on this Mac. No old password needed here.</p></div><span class="sp"></span><button class="btn" id="openAddUser">+ Add user</button></div>
+      <div class="card">
+        <div class="tablewrap"><table><thead><tr><th>User ID</th><th>Role</th><th>Created</th><th></th></tr></thead><tbody id="users"></tbody></table></div>
+        <div class="empty" id="usersEmpty" hidden><b>No users yet</b><span>Add the first account. It becomes an administrator.</span></div>
+      </div>
+      <div id="userMsg"></div>
+    </section>
+
+    <!-- PROJECTS -->
+    <section data-view="projects" hidden>
+      <div class="head"><div><h1>Projects</h1><p>Master guides prepared for Artwork Resizer. Create new ones in Project Builder.</p></div><span class="sp"></span>
+        <button class="btn ghost" data-open="projects">Open projects folder</button><button class="btn" id="newProject">+ New project</button></div>
+      <div class="projects" id="projects"></div>
+      <div class="card empty" id="projEmpty" hidden><b>No projects yet</b><span>Open Project Builder and drop in a master guide PDF.</span></div>
+    </section>
+
+    <!-- THIS MAC'S LICENCE -->
+    <section data-view="maclic" hidden>
+      <div class="head"><div><h1>This Mac's licence</h1><p>The licence the apps on this Mac use. Enter a new code here when it is renewed.</p></div></div>
+      <div class="grid2" id="macLicCards"></div>
+      <div class="card pad">
+        <h2>Enter a licence code</h2>
+        <textarea id="macCode" rows="4" placeholder="AR1-XXXXX-XXXXX-…"></textarea>
+        <div id="macMsg"></div>
+        <div><button class="btn" id="macActivate">Activate on this Mac</button></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section data-view="settings" hidden>
+      <div class="head"><div><h1>Password &amp; folders</h1></div></div>
+      <div class="grid2">
+        <form class="card pad" id="pwForm">
+          <h2>Change the manager password</h2>
+          <label class="f">Current password <input type="password" id="pOld" autocomplete="current-password" required></label>
+          <label class="f">New password <small>At least 10 characters</small><input type="password" id="pNew" autocomplete="new-password" required></label>
+          <div id="pwMsg"></div>
+          <div><button class="btn" type="submit">Change password</button></div>
+        </form>
+        <div class="card pad">
+          <h2>Folders</h2>
+          <div class="kv" id="folders"></div>
+          <div class="row"><button class="btn ghost small" data-open="register">Open licence register</button><button class="btn ghost small" data-open="projects">Open projects</button><button class="btn ghost small" data-open="output">Open output</button></div>
+          <p class="hint">Keep this folder private and backed up: it holds the signing key (private_key.hex). Without it, no new licence codes can be made.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- dialogs -->
+<dialog id="dNew" aria-labelledby="dNewTitle"><form id="newForm">
+  <div class="dh"><h3 id="dNewTitle">New licence</h3><button type="button" class="x" data-close aria-label="Close">×</button></div>
+  <div class="db" id="newFields">
+    <label class="f">Customer <small>Company or person – shown inside the app</small><input id="licensee" maxlength="48" required placeholder="e.g. Profoto Digital Services Pte Ltd"></label>
+    <label class="f">Contact email <small>Optional – kept in your register only</small><input id="email" type="email" placeholder="name@company.com"></label>
+    <div style="display:grid;gap:6px;font-size:13px;font-weight:600">Apps included<div class="choice" id="prods"></div></div>
+    <div class="row2"><label class="f">Starts on <input id="start" type="date" required></label><label class="f">Notes <small>Invoice, seats…</small><input id="notes" placeholder="Optional"></label></div>
+    <div class="period"><span>Valid for one year</span><b id="periodText"></b></div>
+    <div id="newMsg"></div>
+  </div>
+  <div class="db" id="newDone" hidden>
+    <div class="done">✓ Licence created and saved</div>
+    <div class="kv" id="newKv"></div>
+    <div class="code" id="newCode"></div>
+    <p class="hint">Send the code to the customer. They paste it on the app's licence screen.</p>
+  </div>
+  <div class="df" id="newActions"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">Create licence</button></div>
+  <div class="df" id="doneActions" hidden><button type="button" class="btn ghost" id="useHere">Use on this Mac</button><button type="button" class="btn ghost" id="copyMailNew">Copy email text</button><button type="button" class="btn ghost" id="copyCodeNew">Copy code</button><button type="button" class="btn" data-close>Done</button></div>
+</form></dialog>
+
+<dialog id="dView" aria-labelledby="dViewTitle">
+  <div class="dh"><h3 id="dViewTitle">Licence</h3><button type="button" class="x" data-close aria-label="Close">×</button></div>
+  <div class="db"><div class="kv" id="viewKv"></div><div><div style="font-size:13px;font-weight:600;margin-bottom:6px">Licence code</div><div class="code" id="viewCode"></div></div><div id="viewHist"></div></div>
+  <div class="df"><button type="button" class="btn ghost" id="copyMailView">Copy email text</button><button type="button" class="btn ghost" id="copyCodeView">Copy code</button><button type="button" class="btn" id="renewView">Renew for another year</button></div>
+</dialog>
+
+<dialog id="dCheck" aria-labelledby="dCheckTitle">
+  <div class="dh"><h3 id="dCheckTitle">Check a code</h3><button type="button" class="x" data-close aria-label="Close">×</button></div>
+  <div class="db"><p class="hint">Paste a code to see whether it is genuine, who it belongs to and when it ends.</p><textarea id="checkCode" rows="5" placeholder="AR1-XXXXX-XXXXX-…"></textarea><div id="checkOut"></div></div>
+  <div class="df"><button type="button" class="btn ghost" data-close>Close</button><button type="button" class="btn" id="check">Check code</button></div>
+</dialog>
+
+<dialog id="dUser" aria-labelledby="dUserTitle"><form id="userForm">
+  <div class="dh"><h3 id="dUserTitle">Add user</h3><button type="button" class="x" data-close aria-label="Close">×</button></div>
+  <div class="db">
+    <label class="f" id="uidWrap">User ID <small>3–40 characters: letters, numbers, dot, dash, underscore or @</small><input id="uUid" autocomplete="off"></label>
+    <label class="f">Password <small>At least 8 characters. Share it with the person; they can change it under Account.</small>
+      <div class="row" style="flex-wrap:nowrap"><input id="uPw" type="text" autocomplete="off"><button type="button" class="btn ghost small" id="genPw">Suggest</button></div></label>
+    <label class="f" id="roleWrap">Role <select id="uRole"><option value="user">User – can resize artwork and build projects</option><option value="admin">Administrator – can also manage users</option></select></label>
+    <div id="uMsg"></div>
+  </div>
+  <div class="df"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn" id="uSubmit">Add user</button></div>
+</form></dialog>
+
+<dialog id="dRename" aria-labelledby="dRenameTitle"><form id="renameForm">
+  <div class="dh"><h3 id="dRenameTitle">Rename project</h3><button type="button" class="x" data-close aria-label="Close">×</button></div>
+  <div class="db"><label class="f">Project name <input id="rName" required maxlength="80"></label><div id="rMsg"></div></div>
+  <div class="df"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">Save</button></div>
+</form></dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const PN = {R:'Artwork Resizer', B:'Project Builder'}, PD = {R:'Resize artwork to any size', B:'Create new projects from guides'};
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const nice = s => s ? new Date(String(s).slice(0,10)+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}) : '';
+const appsOf = p => [...p].map(c=>PN[c]||c);
+const S = { rows:[], filter:'all', q:'', current:null, last:null, ov:null, users:[], projects:[], page:'overview' };
+
+async function api(path, body){
+  const r = await fetch(path, body!==undefined?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});
+  const j = await r.json().catch(()=>({}));
+  if (r.status===401){ boot(); throw new Error('Please sign in.'); }
+  if (!r.ok) throw new Error(j.error||'Something went wrong.'); return j;
+}
+function msg(id, t, k){ $(id).innerHTML = t ? `<div class="msg ${k||'err'}">${esc(t)}</div>` : ''; }
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(el._h); el._h=setTimeout(()=>el.classList.remove('on'),2400); }
+async function copy(text,label){ try{ await navigator.clipboard.writeText(text); toast(label+' copied'); }catch(e){ prompt('Copy this:', text); } }
+function emailText(r){ return `Hello,\n\nHere is your licence code for ${appsOf(r.products).join(' and ')}, valid from ${nice(r.start)} to ${nice(r.end)}:\n\n${r.code}\n\nTo activate: open the app, paste the code on the licence screen (or under Account > Enter a new licence code) and click Activate.\n\nLicence ID: ${r.id}\n`; }
+const statusKey = r => r.state==='Ends soon' ? 'soon' : (r.state==='Not started' ? 'later' : r.state);
+
+// ---------------------------------------------------------------- sign in & navigation
+let first=false;
+async function boot(){
+  const s = await (await fetch('/api/state')).json();
+  if (!s.key_ok){ document.body.innerHTML='<p style="padding:40px">private_key.hex is missing from this folder.</p>'; return; }
+  if (!s.signed_in){ first=!s.has_password; $('gate').hidden=false; $('app').hidden=true;
+    $('gateTitle').textContent = first ? 'Set your manager password' : 'Sign in to Control Centre';
+    $('gateHint').textContent = first ? 'Choose a password of at least 10 characters. It protects this tool.' : 'Enter your manager password.';
+    $('gatePw2Wrap').hidden=!first; $('gatePw').focus(); return; }
+  $('gate').hidden=true; $('app').hidden=false;
+  $('prods').innerHTML = Object.entries(s.products).map(([k,v])=>`<label><input type="checkbox" value="${k}" checked><span><b>${esc(v)}</b><small>${esc(PD[k]||'')}</small></span></label>`).join('');
+  go(location.hash.slice(1) || 'overview');
+}
+$('gateForm').onsubmit = async e=>{ e.preventDefault(); msg('gateMsg','');
+  try{ if(first){ if($('gatePw').value!==$('gatePw2').value) throw new Error('The two passwords do not match.'); await api('/api/set-password',{password:$('gatePw').value}); }
+       else await api('/api/login',{password:$('gatePw').value});
+       $('gatePw').value=''; $('gatePw2').value=''; boot(); }catch(err){ msg('gateMsg',err.message); } };
+$('logout').onclick = async()=>{ await api('/api/logout',{}); boot(); };
+
+const LOADERS = { overview: loadOverview, licences: loadLicences, apps: loadApps, users: loadUsers, projects: loadProjects, maclic: loadMacLic, settings: loadOverview };
+function go(page){
+  if (!LOADERS[page]) page='overview';
+  S.page=page; history.replaceState(null,'','#'+page);
+  document.querySelectorAll('[data-view]').forEach(v=>v.hidden = v.dataset.view!==page);
+  document.querySelectorAll('.nav [data-page]').forEach(b=>b.setAttribute('aria-current', b.dataset.page===page?'page':'false'));
+  LOADERS[page]().catch(e=>toast(e.message));
+  refreshCounts();
+}
+document.querySelectorAll('.nav [data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
+document.addEventListener('click', e=>{
+  const g=e.target.closest('[data-goto]'); if(g){ go(g.dataset.goto); return; }
+  const o=e.target.closest('[data-open]'); if(o){ api('/api/open',{what:o.dataset.open}).then(()=>toast('Opened in Finder')).catch(err=>toast(err.message)); return; }
+  const n=e.target.closest('[data-go-new]'); if(n){ openNew(); return; }
+});
+async function refreshCounts(){
+  try{ const o = S.ov = await api('/api/overview');
+    $('navLic').textContent = o.licences.due.length || ''; $('navLic').className = 'count' + (o.licences.due.length ? ' warn':''); $('navLic').hidden = !o.licences.due.length;
+    $('navUsers').textContent=o.users; $('navProj').textContent=o.projects;
+  }catch(e){}
+}
+
+// ---------------------------------------------------------------- overview
+function appCard(key, a, compact){
+  const label = {running:'Running', starting:'Starting…', stopped:'Stopped'}[a.state];
+  if (!a.installed) return `<div class="appcard"><span class="dot"></span><div><b>${esc(a.name)}</b><small>Not found next to this folder</small></div><span></span></div>`;
+  return `<div class="appcard"><span class="dot ${a.state}"></span>
+    <div><b>${esc(a.name)}</b><small>${label}${a.state==='running'?' · '+esc(a.url):''}${a.note && a.state!=='running' ? ' · '+esc(a.note):''}</small></div>
+    <div class="row">${a.state==='running'
+      ? `<a class="btn small" href="${a.url}" target="_blank" rel="noopener">Open</a><button class="btn ghost small" data-app="${key}" data-act="stop">Stop</button>`
+      : `<button class="btn small" data-app="${key}" data-act="start" ${a.state==='starting'?'disabled':''}>${a.state==='starting'?'Starting…':'Start'}</button>`}
+      ${compact?'':`<button class="btn ghost small" data-open="${key}">Folder</button>`}</div></div>`;
+}
+document.addEventListener('click', async e=>{
+  const b=e.target.closest('[data-app]'); if(!b) return;
+  b.disabled=true;
+  try{ await api('/api/apps',{app:b.dataset.app, action:b.dataset.act}); toast(b.dataset.act==='start'?'Starting…':'Stopped'); }
+  catch(err){ toast(err.message); }
+  pollApps(b.dataset.act==='start' ? 40 : 1);
+});
+let appTimer;
+async function pollApps(n){ clearTimeout(appTimer); await (S.page==='apps'?loadApps():loadOverview());
+  const st = S.ov && Object.values(S.ov.apps).some(a=>a.state==='starting');
+  if (n>1 && st) appTimer=setTimeout(()=>pollApps(n-1), 1500); }
+
+function dueHtml(list){ return list.map(r=>`<div class="item"><div><b>${esc(r.licensee)}</b><br><span>${r.days_left<0?'Ended '+nice(r.end):'Ends '+nice(r.end)+' · '+r.days_left+' day'+(r.days_left===1?'':'s')+' left'}</span></div><button class="btn small" data-renew-id="${esc(r.id)}">Renew</button></div>`).join(''); }
+async function loadOverview(){
+  const o = S.ov = await api('/api/overview');
+  $('ovActive').textContent=o.licences.active; $('ovSoon').textContent=o.licences.soon; $('ovExpired').textContent=o.licences.expired;
+  $('ovCustomers').textContent = `${o.licences.customers} customer${o.licences.customers===1?'':'s'} · ${o.licences.total} codes issued`;
+  $('ovDue').hidden=!o.licences.due.length; $('ovDueTitle').textContent=`${o.licences.due.length} customer${o.licences.due.length>1?'s':''} need${o.licences.due.length>1?'':'s'} a new code`;
+  $('ovDueItems').innerHTML = dueHtml(o.licences.due);
+  $('ovApps').innerHTML = Object.entries(o.apps).map(([k,a])=>appCard(k,a,true)).join('');
+  $('ovUsers').textContent=o.users; $('ovProjects').textContent=o.projects; $('ovOutputs').textContent=o.outputs;
+  const ml = o.mac_licence.resizer;
+  $('ovMacLic').innerHTML = ml.valid ? `<div class="msg ok">This Mac is licensed to ${esc(ml.licensee)} until ${nice(ml.end)} (${ml.days_left} days).</div>`
+    : `<div class="msg err">This Mac has no valid licence: ${esc(ml.reason||'')} <a href="#maclic" data-goto="maclic">Enter a code</a></div>`;
+  $('folders').innerHTML = `<span>Projects</span><b class="path">${esc(o.folders.projects)}</b><span>Output</span><b class="path">${esc(o.folders.output)}</b><span>Licence register</span><b class="path">${esc(o.folders.register)}</b>`;
+}
+
+// ---------------------------------------------------------------- licences
+async function loadLicences(){ const r = await api('/api/history'); S.rows=r.rows; renderLicences(); }
+function renderLicences(){
+  const rows=S.rows, count=k=>rows.filter(r=>statusKey(r)===k).length;
+  $('sActive').textContent=count('Active')+count('soon'); $('sSoon').textContent=count('soon'); $('sExpired').textContent=count('Expired'); $('sAll').textContent=rows.length;
+  document.querySelectorAll('.stat').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.filter===S.filter)));
+  $('listTitle').textContent = {all:'All licences',Active:'Active licences',soon:'Ending within 30 days',Expired:'Expired licences'}[S.filter];
+  const latest={}; rows.forEach(r=>{ const k=r.licensee.toLowerCase(); if(!latest[k]||r.end>latest[k].end) latest[k]=r; });
+  const due=Object.values(latest).filter(r=>r.days_left<=30&&r.days_left>=-60).sort((a,b)=>a.days_left-b.days_left);
+  $('due').hidden=!due.length; $('dueTitle').textContent=`${due.length} customer${due.length>1?'s':''} need${due.length>1?'':'s'} a new code`; $('dueItems').innerHTML=dueHtml(due);
+  const q=S.q.trim().toLowerCase();
+  const list=rows.filter(r=>{ const k=statusKey(r);
+    if(S.filter==='Active'&&!(k==='Active'||k==='soon')) return false; if(S.filter==='soon'&&k!=='soon') return false; if(S.filter==='Expired'&&k!=='Expired') return false;
+    return !q || [r.licensee,r.email,r.id,r.notes].join(' ').toLowerCase().includes(q); });
+  $('licEmpty').hidden=rows.length>0; $('noMatch').hidden=!(rows.length&&!list.length);
+  $('rows').innerHTML=list.map(r=>{ const k=statusKey(r), total=Math.max(1,(new Date(r.end)-new Date(r.start))/864e5), pct=Math.max(0,Math.min(100,100*r.days_left/total));
+    return `<tr data-id="${esc(r.id)}" tabindex="0"><td class="cust"><b>${esc(r.licensee)}</b><small>${esc(r.email||'No email')}</small></td>
+      <td><div class="apps">${appsOf(r.products).map(a=>`<span class="app">${esc(a)}</span>`).join('')}</div></td>
+      <td class="valid">${nice(r.end)}<small>${k==='Expired'?'Ended '+(-r.days_left)+' days ago':(k==='later'?'Starts '+nice(r.start):r.days_left+' days left')}</small><div class="meter"><i class="${k}" style="width:${k==='Expired'?100:pct}%"></i></div></td>
+      <td><span class="pill ${k}">${esc(r.state)}</span></td><td style="font-family:var(--mono);font-size:12px">${esc(r.id)}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="btn ghost small" data-copy="${esc(r.id)}">Copy code</button> <button class="btn ghost small" data-renew-id="${esc(r.id)}">Renew</button></td></tr>`; }).join('');
+}
+document.querySelectorAll('.stat').forEach(b=>b.onclick=()=>{ S.filter=b.dataset.filter; renderLicences(); });
+$('q').oninput=e=>{ S.q=e.target.value; renderLicences(); };
+const byId = id => S.rows.find(r=>r.id===id) || (S.ov && S.ov.licences.due.find(r=>r.id===id));
+document.addEventListener('click', e=>{
+  const c=e.target.closest('[data-copy]'); if(c){ e.stopPropagation(); copy(byId(c.dataset.copy).code,'Code'); return; }
+  const rn=e.target.closest('[data-renew-id]'); if(rn){ e.stopPropagation(); openNew(byId(rn.dataset.renewId)); return; }
+  const tr=e.target.closest('#rows tr[data-id]'); if(tr) openView(byId(tr.dataset.id));
+});
+$('rows').addEventListener('keydown', e=>{ const tr=e.target.closest('tr[data-id]'); if(tr&&e.key==='Enter') openView(byId(tr.dataset.id)); });
+
+document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click', e=>{ if(e.target===d||e.target.closest('[data-close]')) d.close(); }));
+function updatePeriod(){ const s=$('start').value; if(!s) return; const d=new Date(s+'T00:00:00'), e=new Date(d); e.setFullYear(d.getFullYear()+1); e.setDate(e.getDate()-1); $('periodText').textContent=`${nice(ymd(d))} → ${nice(ymd(e))}`; }
+$('start').addEventListener('change', updatePeriod);
+function openNew(renewOf){
+  $('newForm').reset(); msg('newMsg',''); $('newFields').hidden=false; $('newActions').hidden=false; $('newDone').hidden=true; $('doneActions').hidden=true;
+  $('dNewTitle').textContent = renewOf ? 'Renew licence' : 'New licence';
+  if (renewOf){ $('licensee').value=renewOf.licensee; $('email').value=renewOf.email||''; $('notes').value='Renewal of '+renewOf.id;
+    const d=new Date(renewOf.end+'T00:00:00'); d.setDate(d.getDate()+1); const t=new Date(); t.setHours(0,0,0,0);
+    $('start').value=ymd(d<t?t:d); document.querySelectorAll('#prods input').forEach(i=>i.checked=renewOf.products.includes(i.value));
+    msg('newMsg', d<t ? 'The previous licence has already ended, so the new one starts today.' : `Starts the day after ${nice(renewOf.end)}, so there is no gap.`, 'ok');
+  } else { $('start').value=ymd(new Date()); document.querySelectorAll('#prods input').forEach(i=>i.checked=true); }
+  updatePeriod(); $('dView').close(); $('dNew').showModal(); setTimeout(()=>$('licensee').focus(),50);
+}
+$('newForm').onsubmit = async e=>{ e.preventDefault(); msg('newMsg','');
+  const products=[...document.querySelectorAll('#prods input:checked')].map(i=>i.value).join(''); if(!products){ msg('newMsg','Choose at least one app.'); return; }
+  try{ const r=S.last=await api('/api/issue',{licensee:$('licensee').value,email:$('email').value,products,start:$('start').value,notes:$('notes').value});
+    $('newKv').innerHTML=`<span>Customer</span><b>${esc(r.licensee)}</b><span>Apps</span><b>${esc(appsOf(r.products).join(', '))}</b><span>Valid</span><b>${nice(r.start)} → ${nice(r.end)}</b><span>Licence ID</span><b>${esc(r.id)}</b>`;
+    $('newCode').textContent=r.code; $('newFields').hidden=true; $('newActions').hidden=true; $('newDone').hidden=false; $('doneActions').hidden=false;
+    if (S.page==='licences') loadLicences(); else if (S.page==='overview') loadOverview(); refreshCounts();
+  }catch(err){ msg('newMsg',err.message); } };
+$('copyCodeNew').onclick=()=>copy(S.last.code,'Code'); $('copyMailNew').onclick=()=>copy(emailText(S.last),'Email text');
+$('useHere').onclick=async()=>{ try{ await api('/api/mac-licence',{code:S.last.code}); toast('Activated on this Mac'); $('dNew').close(); go('maclic'); }catch(err){ toast(err.message); } };
+function openView(r){ S.current=r; const k=statusKey(r); $('dViewTitle').textContent=r.licensee;
+  $('viewKv').innerHTML=`<span>Status</span><b><span class="pill ${k}">${esc(r.state)}</span></b><span>Valid</span><b>${nice(r.start)} → ${nice(r.end)}${k==='Expired'?'':' · '+r.days_left+' days left'}</b>
+    <span>Apps</span><b>${esc(appsOf(r.products).join(', '))}</b><span>Email</span><b>${esc(r.email||'—')}</b><span>Licence ID</span><b>${esc(r.id)}</b><span>Issued on</span><b>${nice(r.issued_on)}</b>${r.notes?`<span>Notes</span><b>${esc(r.notes)}</b>`:''}`;
+  $('viewCode').textContent=r.code;
+  const others=S.rows.filter(x=>x.licensee.toLowerCase()===r.licensee.toLowerCase()&&x.id!==r.id);
+  $('viewHist').innerHTML=others.length?`<div style="font-size:13px;font-weight:600;margin-bottom:6px">Other licences for this customer</div><div class="hist">${others.map(x=>`<div><span>${esc(x.id)} · ${nice(x.start)} → ${nice(x.end)}</span><span class="pill ${statusKey(x)}">${esc(x.state)}</span></div>`).join('')}</div>`:'';
+  $('dView').showModal(); }
+$('copyCodeView').onclick=()=>copy(S.current.code,'Code'); $('copyMailView').onclick=()=>copy(emailText(S.current),'Email text'); $('renewView').onclick=()=>openNew(S.current);
+$('openCheck').onclick=()=>{ $('checkOut').innerHTML=''; $('checkCode').value=''; $('dCheck').showModal(); };
+$('check').onclick=async()=>{ try{ const r=await api('/api/check',{code:$('checkCode').value}); const ended=r.end<ymd(new Date());
+  $('checkOut').innerHTML=`<div class="msg ${ended?'err':'ok'}"><b>${ended?'Genuine, but this licence has ended.':'Genuine licence code.'}</b></div><div class="kv"><span>Customer</span><b>${esc(r.licensee)}</b><span>Valid</span><b>${nice(r.start)} → ${nice(r.end)}</b><span>Apps</span><b>${esc(r.products.join(', '))}</b><span>Licence ID</span><b>${esc(r.id)}</b></div>`;
+}catch(err){ msg('checkOut',err.message); } };
+
+// ---------------------------------------------------------------- apps & files
+async function loadApps(){
+  const o = S.ov = await api('/api/overview');
+  $('appCards').innerHTML = Object.entries(o.apps).map(([k,a])=>appCard(k,a,false)).join('');
+  const f = await api('/api/outputs');
+  $('filesEmpty').hidden = f.files.length>0;
+  $('files').innerHTML = f.files.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.modified)}</td><td>${x.size_kb>=1024?(x.size_kb/1024).toFixed(1)+' MB':x.size_kb+' KB'}</td></tr>`).join('');
+}
+
+// ---------------------------------------------------------------- users
+async function loadUsers(r){
+  r = r || await api('/api/users'); S.users=r.users;
+  $('usersEmpty').hidden=r.users.length>0;
+  $('users').innerHTML=r.users.map(u=>`<tr><td><b>${esc(u.id)}</b></td>
+    <td><select data-role="${esc(u.id)}" aria-label="Role for ${esc(u.id)}" style="width:auto"><option value="user"${u.role==='user'?' selected':''}>User</option><option value="admin"${u.role==='admin'?' selected':''}>Administrator</option></select></td>
+    <td>${nice(u.created)}</td>
+    <td style="text-align:right;white-space:nowrap"><button class="btn ghost small" data-reset="${esc(u.id)}">Set new password</button> <button class="btn danger small" data-del="${esc(u.id)}">Remove</button></td></tr>`).join('');
+  document.querySelectorAll('[data-role]').forEach(s=>s.onchange=async()=>{ try{ loadUsers(await api('/api/users',{action:'role',uid:s.dataset.role,role:s.value})); toast('Role updated'); }catch(err){ toast(err.message); loadUsers(); } });
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='Click again to remove'; setTimeout(()=>{b.dataset.armed='';b.textContent='Remove';},4000); return; }
+    try{ loadUsers(await api('/api/users',{action:'delete',uid:b.dataset.del})); toast('User removed'); refreshCounts(); }catch(err){ toast(err.message); } });
+  document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>openUser(b.dataset.reset));
+}
+function genPw(){ const a='abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s=''; const v=crypto.getRandomValues(new Uint32Array(10)); v.forEach(x=>s+=a[x%a.length]); return s; }
+let userMode='add';
+function openUser(resetUid){
+  userMode = resetUid ? 'reset' : 'add'; $('userForm').reset(); msg('uMsg','');
+  $('dUserTitle').textContent = resetUid ? `Set a new password for ${resetUid}` : 'Add user';
+  $('uidWrap').hidden=!!resetUid; $('roleWrap').hidden=!!resetUid; $('uUid').value=resetUid||''; $('uPw').value=genPw();
+  $('uSubmit').textContent = resetUid ? 'Save new password' : 'Add user';
+  $('dUser').showModal(); setTimeout(()=>(resetUid?$('uPw'):$('uUid')).focus(),50);
+}
+$('openAddUser').onclick=()=>openUser(); $('genPw').onclick=()=>{ $('uPw').value=genPw(); };
+$('userForm').onsubmit=async e=>{ e.preventDefault(); msg('uMsg','');
+  try{ const r=await api('/api/users',{action:userMode,uid:$('uUid').value,password:$('uPw').value,role:$('uRole').value});
+    $('dUser').close(); loadUsers(r); refreshCounts();
+    msg('userMsg', `${userMode==='add'?'Added':'New password set for'} ${$('uUid').value}. Password: ${$('uPw').value} — share it with them; they can change it under Account.`, 'ok');
+  }catch(err){ msg('uMsg',err.message); } };
+
+// ---------------------------------------------------------------- projects
+async function loadProjects(r){
+  r = r || await api('/api/projects'); S.projects=r.projects;
+  $('projEmpty').hidden=r.projects.length>0;
+  $('projects').innerHTML=r.projects.map(p=>`<article class="proj"><div class="img">${p.thumb?`<img src="${esc(p.thumb)}" alt="" loading="lazy">`:''}</div>
+    <div class="body"><b>${esc(p.name)}</b>
+      <div class="meta"><span>${p.layouts} layouts</span>${p.ratio?`<span>Ratios ${p.ratio[0].toFixed(2)}–${p.ratio[1].toFixed(2)}</span>`:''}<span>${esc(p.versions.join(', '))}</span><span>${p.size_mb} MB</span></div>
+      <div class="meta"><span>${p.linked?'Pictures from links':'Pictures from the guide'}</span><span>Updated ${nice(p.updated)}</span></div>
+      <div class="row"><a class="btn small" href="http://localhost:8765" target="_blank" rel="noopener" data-need-resizer>Use in Artwork Resizer</a>
+        <button class="btn ghost small" data-rename="${esc(p.id)}">Rename</button><button class="btn danger small" data-remove="${esc(p.id)}">Remove</button></div></div></article>`).join('');
+  document.querySelectorAll('[data-rename]').forEach(b=>b.onclick=()=>{ S.renaming=b.dataset.rename; $('rName').value=S.projects.find(p=>p.id===b.dataset.rename).name; msg('rMsg',''); $('dRename').showModal(); });
+  document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{
+    if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='Click again to remove'; setTimeout(()=>{b.dataset.armed='';b.textContent='Remove';},4000); return; }
+    try{ loadProjects(await api('/api/projects',{action:'remove',id:b.dataset.remove})); toast('Project moved to projects_removed'); refreshCounts(); }catch(err){ toast(err.message); } });
+  document.querySelectorAll('[data-need-resizer]').forEach(a=>a.onclick=async ev=>{ if(S.ov && S.ov.apps.resizer.state!=='running'){ ev.preventDefault(); await api('/api/apps',{app:'resizer',action:'start'}); toast('Starting Artwork Resizer…'); setTimeout(()=>window.open('http://localhost:8765','_blank'),2500); } });
+}
+$('renameForm').onsubmit=async e=>{ e.preventDefault(); try{ loadProjects(await api('/api/projects',{action:'rename',id:S.renaming,name:$('rName').value})); $('dRename').close(); toast('Renamed'); }catch(err){ msg('rMsg',err.message); } };
+$('newProject').onclick=async()=>{ try{ const o=S.ov||await api('/api/overview');
+  if(o.apps.builder.state==='running'){ window.open(o.apps.builder.url,'_blank'); return; }
+  await api('/api/apps',{app:'builder',action:'start'}); toast('Starting Project Builder…'); go('apps'); pollApps(40); }catch(err){ toast(err.message); } };
+
+// ---------------------------------------------------------------- this Mac's licence
+async function loadMacLic(r){
+  r = r || await api('/api/mac-licence');
+  const names={resizer:'Artwork Resizer',builder:'Project Builder'};
+  $('macLicCards').innerHTML=Object.entries(r).map(([k,L])=>`<div class="card pad"><div class="row" style="justify-content:space-between"><h2>${names[k]}</h2><span class="pill ${L.valid?(L.days_left<=30?'soon':'ok'):'bad'}">${L.valid?(L.days_left<=30?'Ends soon':'Licensed'):'Not licensed'}</span></div>
+    ${L.valid?`<div class="kv"><span>Licensed to</span><b>${esc(L.licensee)}</b><span>Valid</span><b>${nice(L.start)} → ${nice(L.end)}</b><span>Days left</span><b>${L.days_left}</b><span>Licence ID</span><b>${esc(L.id)}</b></div>`
+             :`<p class="hint">${esc(L.reason||'')}</p>`}</div>`).join('');
+}
+$('macActivate').onclick=async()=>{ msg('macMsg',''); try{ loadMacLic(await api('/api/mac-licence',{code:$('macCode').value})); msg('macMsg','Activated on this Mac.','ok'); $('macCode').value=''; }catch(err){ msg('macMsg',err.message); } };
+
+// ---------------------------------------------------------------- settings
+$('pwForm').onsubmit=async e=>{ e.preventDefault(); try{ await api('/api/manager-password',{old:$('pOld').value,new:$('pNew').value}); msg('pwMsg','Password changed.','ok'); $('pwForm').reset(); }catch(err){ msg('pwMsg',err.message); } };
+
+setInterval(()=>{ if(!$('app').hidden && (S.page==='overview'||S.page==='apps')) (S.page==='apps'?loadApps():loadOverview()).catch(()=>{}); }, 15000);
+boot();
+</script>
+</body>
+</html>
